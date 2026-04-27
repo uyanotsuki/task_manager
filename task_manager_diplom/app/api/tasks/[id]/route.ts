@@ -1,0 +1,54 @@
+import { type NextRequest, NextResponse } from "next/server"
+import { getSession } from "@/lib/session"
+import { prisma } from "@/lib/prisma"
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await getSession()
+    if (!session) {
+      return NextResponse.json({ error: "Пользователь не авторизован" }, { status: 401 })
+    }
+
+    const { id } = await params
+    const body = await request.json()
+
+    const task = await prisma.task.update({
+      where: { id },
+      data: body,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    })
+
+    return NextResponse.json({ task })
+  } catch (error) {
+    console.error("[v0] Ошибка удаления задачи:", error)
+    return NextResponse.json({ error: "Внутренняя ошибка сервера" }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await getSession()
+    if (!session) {
+      return NextResponse.json({ error: "Пользователь не авторизован" }, { status: 401 })
+    }
+
+    const { id } = await params
+
+    await prisma.task.delete({
+      where: { id },
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("[v0] Ошибка удаления задачи:", error)
+    return NextResponse.json({ error: "Внутренняя ошибка сервера" }, { status: 500 })
+  }
+}

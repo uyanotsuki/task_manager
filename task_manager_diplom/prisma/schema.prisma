@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  password     String
+  name         String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  
+  tasks        Task[]
+  createdTeams Team[]       @relation("TeamCreator")
+  teamMembers  TeamMember[]
+  assignedTasks Task[] @relation("AssignedTasks")
+}
+
+model Team {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  creatorId   String
+  tasks       Task[]
+  creator     User         @relation("TeamCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  members     TeamMember[]
+}
+
+model TeamMember {
+  id            String   @id @default(cuid())
+  role          String   @default("member")
+  joinedAt      DateTime @default(now())
+  userId        String
+  teamId        String
+  team          Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+}
+
+model Task {
+  id          String      @id @default(cuid())
+  title       String
+  description String?
+  status      String      @default("todo")
+  priority    String      @default("medium")
+  order       Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  userId      String      // кто создал задачу
+  teamId      String
+  assigneeId  String?     
+
+  assignee    User?       @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  team        Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, status])
+  @@index([assigneeId])
+}
