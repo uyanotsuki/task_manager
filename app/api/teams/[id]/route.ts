@@ -1,0 +1,153 @@
+import { type NextRequest, NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await getSession()
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { id } = await params
+
+    const team = await prisma.team.findUnique({
+      where: { id },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            tasks: true,
+          },
+        },
+      },
+    })
+
+    if (!team) {
+      return NextResponse.json({ error: "Team not found" }, { status: 404 })
+    }
+
+    return NextResponse.json({ team })
+  } catch (error) {
+    console.error("[v0] Get team error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await getSession()
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { id } = await params
+    const body = await request.json()
+    const name = typeof body?.name === "string" ? body.name.trim() : ""
+    const description = typeof body?.description === "string" ? body.description.trim() : null
+
+    if (!name) {
+      return NextResponse.json({ error: "Название проекта обязательно" }, { status: 400 })
+    }
+
+    const team = await prisma.team.findUnique({
+      where: { id },
+    })
+
+    if (!team) {
+      return NextResponse.json({ error: "Team not found" }, { status: 404 })
+    }
+
+    const membership = await prisma.teamMember.findFirst({
+      where: {
+        teamId: id,
+        userId: session.userId,
+        role: "admin",
+      },
+      select: { id: true },
+    })
+
+    if (!membership) {
+      return NextResponse.json({ error: "Только администратор может редактировать проект" }, { status: 403 })
+    }
+
+    const updatedTeam = await prisma.team.update({
+      where: { id },
+      data: { name, description },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    })
+
+    return NextResponse.json({ team: updatedTeam })
+  } catch (error) {
+    console.error("[v0] Update team error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await getSession()
+    if (!session) {
+      return NextResponse.json({ error: "Пользователь не авторизован" }, { status: 401 })
+    }
+
+    const { id } = await params
+
+    const team = await prisma.team.findUnique({
+      where: { id },
+    })
+
+    if (!team) {
+      return NextResponse.json({ error: "Проект на найден" }, { status: 404 })
+    }
+
+    if (team.creatorId !== session.userId) {
+      return NextResponse.json({ error: "Только тот, кто добавил проект может удалить его." }, { status: 403 })
+    }
+
+    await prisma.team.delete({
+      where: { id },
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("[v0] Ошибка удаления проекта:", error)
+    return NextResponse.json({ error: "Внутрення ошибка сервера" }, { status: 500 })
+  }
+}
