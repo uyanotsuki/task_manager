@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { parseJson, teamCreateBodySchema } from "@/lib/api-schemas"
 
 export async function GET() {
   try {
@@ -55,11 +56,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { name, description } = await request.json()
-
-    if (!name) {
-      return NextResponse.json({ error: "Team name is required" }, { status: 400 })
+    let json: unknown
+    try {
+      json = await request.json()
+    } catch {
+      return NextResponse.json({ error: "Некорректный JSON" }, { status: 400 })
     }
+
+    const parsed = parseJson(teamCreateBodySchema, json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
+    }
+
+    const { name, description } = parsed.data
 
     const team = await prisma.team.create({
       data: {

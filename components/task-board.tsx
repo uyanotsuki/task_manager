@@ -18,30 +18,9 @@ import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout"
 import { redirectToLoginPreservingReturn } from "@/lib/redirect-login"
+import type { BoardTask } from "./task-types"
 
-interface Task {
-  id: string
-  title: string
-  description: string | null
-  priority: string
-  status: string
-  order: number
-  deadline?: string | null
-  assigneeId?: string | null
-  assignee?: {
-    id: string
-    user: {
-      id: string
-      name: string
-      email: string
-    }
-  } | null
-  user: {
-    id: string
-    name: string
-    email: string
-  }
-}
+type Task = BoardTask
 
 interface TaskBoardProps {
   teamId: string

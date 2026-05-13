@@ -1,29 +1,37 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { attachSessionToResponse, hashPassword } from "@/lib/auth"
+import { parseJson, registerBodySchema } from "@/lib/api-schemas"
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, name } = await request.json()
-
-    if (!email || !password || !name) {
-      return NextResponse.json({ error: "Пропущены обязательные поля" }, { status: 400 })
+    let json: unknown
+    try {
+      json = await request.json()
+    } catch {
+      return NextResponse.json({ error: "Некорректный JSON" }, { status: 400 })
     }
 
-    // Проверка, есть ли такой пользователь
+    const parsed = parseJson(registerBodySchema, json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
+    }
+
+    const { email, password, name } = parsed.data
+    const emailNormalized = email.toLowerCase()
+
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: emailNormalized },
     })
 
     if (existingUser) {
       return NextResponse.json({ error: "Такой пользователь уже есть" }, { status: 400 })
     }
 
-    // Hash password and create user
     const hashedPassword = await hashPassword(password)
     const user = await prisma.user.create({
       data: {
-        email,
+        email: emailNormalized,
         password: hashedPassword,
         name,
       },

@@ -16,21 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-
-interface Task {
-  id: string
-  title: string
-  description: string | null
-  priority: string
-  status: string
-  deadline?: string | null
-  assigneeId: string | null
-  assignee?: {
-    user: {
-      id: string
-    }
-  } | null
-}
+import type { BoardTask } from "./task-types"
 
 interface TeamMemberOption {
   userId: string
@@ -41,8 +27,8 @@ interface TeamMemberOption {
 interface TaskDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  task: Task | null
-  onSave: (data: Partial<Task>) => Promise<void>
+  task: BoardTask | null
+  onSave: (data: Partial<BoardTask>) => Promise<void>
   teamMembers: TeamMemberOption[]
 }
 
@@ -56,22 +42,26 @@ export function TaskDialog({ open, onOpenChange, task, onSave, teamMembers }: Ta
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (task) {
-      setTitle(task.title)
-      setDescription(task.description || "")
-      setPriority(task.priority)
-      setStatus(task.status)
-      setAssignee(task.assignee?.user?.id || "unassigned")
-      setDeadline(task.deadline ? String(task.deadline).slice(0, 16) : "")
-    } else {
-      setTitle("")
-      setDescription("")
-      setPriority("medium")
-      setStatus("todo")
-      setAssignee("unassigned")
-      setDeadline("")
+    if (open) {
+      if (task) {
+        // Режим редактирования
+        setTitle(task.title)
+        setDescription(task.description || "")
+        setPriority(task.priority)
+        setStatus(task.status)
+        setAssignee(task.assignee?.user?.id || "unassigned")
+        setDeadline(task.deadline ? String(task.deadline).slice(0, 16) : "")
+      } else {
+        // Режим создания новой задачи — полный сброс
+        setTitle("")
+        setDescription("")
+        setPriority("medium")
+        setStatus("todo")
+        setAssignee("unassigned")
+        setDeadline("")
+      }
     }
-  }, [task])
+  }, [open, task])  
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

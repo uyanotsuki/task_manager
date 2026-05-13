@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { assertTeamAccess } from "@/lib/team-access"
+import { teamIdParamSchema } from "@/lib/api-schemas"
 import { subDays, startOfDay, endOfDay } from "date-fns"
 
 export const dynamic = "force-dynamic"
@@ -12,9 +14,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: "не авторизованный пользователь" }, { status: 401 })
     }
 
-    const { teamId } = await params
+    const rawParams = await params
+    const paramResult = teamIdParamSchema.safeParse(rawParams)
+    if (!paramResult.success) {
+      return NextResponse.json({ error: "Некорректный идентификатор проекта" }, { status: 400 })
+    }
+    const { teamId } = paramResult.data
 
-    // Отобразить все задачи из проекта
+    const access = await assertTeamAccess(teamId, session.userId)
+    if (!access.ok) {
+      return NextResponse.json({ error: "Нет доступа к этому проекту" }, { status: access.status })
+    }
+
     const tasks = await prisma.task.findMany({
       where: { teamId },
       select: {

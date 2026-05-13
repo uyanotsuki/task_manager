@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { assertTeamAccess } from "@/lib/team-access"
+import { parseJson, taskReorderBodySchema } from "@/lib/api-schemas"
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,13 +11,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Пользователь не авторизован" }, { status: 401 })
     }
 
-    const { taskId, newStatus, newOrder } = await request.json()
-
-    if (!taskId || !newStatus || newOrder === undefined) {
-      return NextResponse.json({ error: "Пропущены обязательные поля" }, { status: 400 })
+    let json: unknown
+    try {
+      json = await request.json()
+    } catch {
+      return NextResponse.json({ error: "Некорректный JSON" }, { status: 400 })
     }
 
-    // Обновление статуса задачи
+    const parsed = parseJson(taskReorderBodySchema, json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
+    }
+
+    const { taskId, newStatus, newOrder } = parsed.data
+
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { id: true, teamId: true },
+    })
+    if (!task) {
+      return NextResponse.json({ error: "Задача не найдена" }, { status: 404 })
+    }
+
+    const access = await assertTeamAccess(task.teamId, session.userId)
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status })
+    }
+
     await prisma.task.update({
       where: { id: taskId },
       data: {

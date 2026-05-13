@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { ensureTaskDeadlineColumn, prisma } from "@/lib/prisma"
+import { assertTeamAccess } from "@/lib/team-access"
+import { parseJson, parseSearchParams, taskCreateBodySchema, tasksQuerySchema } from "@/lib/api-schemas"
 
 const taskResponseSelect = {
   id: true,
@@ -108,10 +110,15 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const teamId = searchParams.get("teamId")
+    const q = parseSearchParams(tasksQuerySchema, searchParams)
+    if (!q.success) {
+      return NextResponse.json({ error: q.error }, { status: 400 })
+    }
+    const { teamId } = q.data
 
-    if (!teamId) {
-      return NextResponse.json({ error: "Team ID required" }, { status: 400 })
+    const access = await assertTeamAccess(teamId, session.userId)
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status })
     }
 
     const tasks = await prisma.task.findMany({
@@ -138,10 +145,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { title, description, teamId, priority, status, assigneeId, deadline } = await request.json()
+    let json: unknown
+    try {
+      json = await request.json()
+    } catch {
+      return NextResponse.json({ error: "Некорректный JSON" }, { status: 400 })
+    }
 
-    if (!title || !teamId) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    const parsed = parseJson(taskCreateBodySchema, json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
+    }
+
+    const { title, description, teamId, priority, status, assigneeId, deadline } = parsed.data
+
+    const access = await assertTeamAccess(teamId, session.userId)
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status })
     }
 
     const normalizedDeadline =

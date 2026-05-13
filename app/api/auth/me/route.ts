@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { mePatchBodySchema, parseJson } from "@/lib/api-schemas"
 
 export async function GET() {
   try {
@@ -38,16 +39,23 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await request.json()
-    const name = typeof body?.name === "string" ? body.name.trim() : ""
-    const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : ""
-
-    if (!name || !email) {
-      return NextResponse.json({ error: "Имя и электронная почта обязательны" }, { status: 400 })
+    let json: unknown
+    try {
+      json = await request.json()
+    } catch {
+      return NextResponse.json({ error: "Некорректный JSON" }, { status: 400 })
     }
 
+    const parsed = parseJson(mePatchBodySchema, json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
+    }
+
+    const { name, email } = parsed.data
+    const emailNormalized = email.toLowerCase()
+
     const existingByEmail = await prisma.user.findUnique({
-      where: { email },
+      where: { email: emailNormalized },
       select: { id: true },
     })
 
@@ -57,7 +65,7 @@ export async function PATCH(request: Request) {
 
     const user = await prisma.user.update({
       where: { id: session.userId },
-      data: { name, email },
+      data: { name, email: emailNormalized },
       select: {
         id: true,
         email: true,

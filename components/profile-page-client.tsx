@@ -122,11 +122,11 @@ export function ProfilePageClient({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+      {/* <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4"> */}
         {/* <SidebarTrigger /> */}
-      </header>
+      {/* </header> */}
 
-      <main className="container mx-auto flex-1 px-4 py-8">
+      <main className="container mx-auto flex-1 px-2 py-2">
         <div className="space-y-6">
           <Card>
             <CardContent className="flex w-full items-center gap-4 p-6">

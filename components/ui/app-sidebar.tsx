@@ -1,9 +1,9 @@
-// components/app-sidebar.tsx
 'use client'
 
 import Link from "next/link"
 import { Home, Settings, HelpCircle, LogOut, ChevronLeft } from "lucide-react"
 import { useEffect, useState } from "react"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 import {
   Sidebar,
@@ -32,8 +32,8 @@ export function AppSidebar() {
       .catch(err => console.error("Failed to fetch user:", err))
   }, [])
 
-  const rawName = user?.name || user?.username || "Diana Azamatova"
-  const displayName = typeof rawName === "string" ? rawName.trim() : "Diana Azamatova"
+  const rawName = user?.name || user?.username
+  const displayName = typeof rawName === "string" ? rawName.trim() : ""
 
   const initials = displayName
     .split(" ")
@@ -45,13 +45,11 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" variant="inset">
       <SidebarContent>
-        {/* Верхняя часть: Кнопка + Логотип */}
         <div className="px-4 py-6 flex items-center gap-3">
           {state !== "collapsed" && (
-            <SidebarMenuButton 
+            <SidebarMenuButton
               onClick={toggleSidebar}
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
+              className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
             >
               <ChevronLeft className="h-5 w-5" />
             </SidebarMenuButton>
@@ -102,6 +100,9 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarContent>
 
+      <div className="flex justify-center py-2">
+          <ThemeToggle />
+        </div>
       {/* Footer */}
       <SidebarFooter className="border-t border-border p-4">
         <div className="flex flex-col gap-2">
@@ -127,19 +128,22 @@ export function AppSidebar() {
                   method: 'POST',
                   credentials: 'include' 
                 })
-                window.location.href = '/login'   
+                window.location.href = '/'   
               } catch (error) {
                 console.error('Logout error:', error)
-                window.location.href = '/login'
+                window.location.href = '/'
               }
             }}
             className="w-full justify-center text-muted-foreground hover:text-violet-500 hover:bg-violet-950/50"
-            size={state === "collapsed" ? "icon" : "default"}
+            size={state === "collapsed" ? "sm" : "default"}
           >
             <LogOut className="h-5 w-5" />
             {state !== "collapsed" && <span className="ml-2">Выход</span>}
           </SidebarMenuButton>
         </div>
+        {/* <div className="flex justify-center py-2">
+          <ThemeToggle />
+        </div> */}
       </SidebarFooter>
     </Sidebar>
   )

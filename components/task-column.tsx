@@ -6,29 +6,13 @@ import { TaskCard } from "./task-card"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-
-interface Task {
-  id: string
-  title: string
-  description: string | null
-  priority: string
-  status: string
-  assignee?: {
-    user: {
-      name: string
-      email: string
-    }
-  } | null
-  user: {
-    name: string
-  }
-}
+import type { BoardTask } from "./task-types"
 
 interface TaskColumnProps {
   status: string
   title: string
-  tasks: Task[]
-  onEdit: (task: Task) => void
+  tasks: BoardTask[]
+  onEdit: (task: BoardTask) => void
   onDelete: (taskId: string) => void
 }
 

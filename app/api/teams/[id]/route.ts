@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { assertTeamAccess } from "@/lib/team-access"
+import { parseJson, teamIdParamsSchema, teamPatchBodySchema } from "@/lib/api-schemas"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -9,10 +11,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { id } = await params
+    const rawParams = await params
+    const paramResult = teamIdParamsSchema.safeParse(rawParams)
+    if (!paramResult.success) {
+      return NextResponse.json({ error: "Некорректный идентификатор проекта" }, { status: 400 })
+    }
+    const { id } = paramResult.data
 
-    const team = await prisma.team.findUnique({
-      where: { id },
+    const team = await prisma.team.findFirst({
+      where: {
+        id,
+        OR: [{ creatorId: session.userId }, { members: { some: { userId: session.userId } } }],
+      },
       include: {
         creator: {
           select: {
@@ -58,13 +68,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { id } = await params
-    const body = await request.json()
-    const name = typeof body?.name === "string" ? body.name.trim() : ""
-    const description = typeof body?.description === "string" ? body.description.trim() : null
+    const rawParams = await params
+    const paramResult = teamIdParamsSchema.safeParse(rawParams)
+    if (!paramResult.success) {
+      return NextResponse.json({ error: "Некорректный идентификатор проекта" }, { status: 400 })
+    }
+    const { id } = paramResult.data
 
-    if (!name) {
-      return NextResponse.json({ error: "Название проекта обязательно" }, { status: 400 })
+    let json: unknown
+    try {
+      json = await request.json()
+    } catch {
+      return NextResponse.json({ error: "Некорректный JSON" }, { status: 400 })
+    }
+
+    const parsed = parseJson(teamPatchBodySchema, json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
     }
 
     const team = await prisma.team.findUnique({
@@ -73,6 +93,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (!team) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 })
+    }
+
+    const access = await assertTeamAccess(id, session.userId)
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status })
     }
 
     const membership = await prisma.teamMember.findFirst({
@@ -88,9 +113,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "Только администратор может редактировать проект" }, { status: 403 })
     }
 
+    const updateData: { name: string; description?: string | null } = { name: parsed.data.name }
+    if (parsed.data.description !== undefined) {
+      updateData.description = parsed.data.description
+    }
+
     const updatedTeam = await prisma.team.update({
       where: { id },
-      data: { name, description },
+      data: updateData,
       include: {
         creator: {
           select: {
@@ -127,7 +157,12 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: "Пользователь не авторизован" }, { status: 401 })
     }
 
-    const { id } = await params
+    const rawParams = await params
+    const paramResult = teamIdParamsSchema.safeParse(rawParams)
+    if (!paramResult.success) {
+      return NextResponse.json({ error: "Некорректный идентификатор проекта" }, { status: 400 })
+    }
+    const { id } = paramResult.data
 
     const team = await prisma.team.findUnique({
       where: { id },

@@ -1,25 +1,32 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { attachSessionToResponse, verifyPassword } from "@/lib/auth"
+import { loginBodySchema, parseJson } from "@/lib/api-schemas"
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json()
-
-    if (!email || !password) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    let json: unknown
+    try {
+      json = await request.json()
+    } catch {
+      return NextResponse.json({ error: "Некорректный JSON" }, { status: 400 })
     }
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email },
+    const parsed = parseJson(loginBodySchema, json)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
+    }
+
+    const { email, password } = parsed.data
+
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
     })
 
     if (!user) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    // Verify password
     const isValid = await verifyPassword(password, user.password)
 
     if (!isValid) {

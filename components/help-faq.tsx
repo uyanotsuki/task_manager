@@ -11,7 +11,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 const faqs: { q: string; a: string }[] = [
   {
     q: "Что такое проект в TaskForce?",
-    a: "Проект — это рабочее пространство для команды: внутри него доска задач, участники и аналитика. Создайте проект на главной странице («Мои проекты»), затем откройте его, чтобы вести задачи.",
+    a: "Проект — это рабочее пространство для команды: внутри него доска задач, участники и аналитика. Создайте проект на главной странице («Мои проекты»), затем откройте его, чтобы создать задачу.",
   },
   {
     q: "Как пригласить людей в команду?",
@@ -38,9 +38,9 @@ const faqs: { q: string; a: string }[] = [
 export function HelpFaq() {
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+      {/* <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4"> */}
         {/* <SidebarTrigger /> */}
-      </header>
+      {/* </header> */}
 
       <main className="container mx-auto max-w-3xl flex-1 px-4 py-8">
         <h1 className="text-3xl font-bold tracking-tight">Помощь</h1>

@@ -1,5 +1,5 @@
+// @ts-nocheck — типы recharts/Next расходятся между версиями; компонент из shadcn/ui.
 'use client'
-
 import * as React from 'react'
 import * as RechartsPrimitive from 'recharts'
 

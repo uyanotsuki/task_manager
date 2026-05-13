@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { ensureTaskDeadlineColumn, prisma } from "@/lib/prisma"
+import { assertTeamAccess } from "@/lib/team-access"
+import { parseJson, taskIdParamsSchema, taskPatchBodySchema } from "@/lib/api-schemas"
 
 const taskResponseSelect = {
   id: true,
@@ -90,154 +92,67 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const { id } = await params
-    const body = await request.json()
+
+    const json = await request.json().catch(() => ({}))
+    const parsedBody = parseJson(taskPatchBodySchema, json)
+    if (!parsedBody.success) {
+      return NextResponse.json({ error: parsedBody.error }, { status: 400 })
+    }
+    const body = parsedBody.data
+
+    // Проверки
     const existingTask = await prisma.task.findUnique({
       where: { id },
-      select: { id: true, teamId: true, assigneeId: true },
+      select: { teamId: true }
     })
 
     if (!existingTask) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 })
+      return NextResponse.json({ error: "Задача не найдена" }, { status: 404 })
     }
 
-    const rawAssigneeId =
-      body.assigneeId === undefined
-        ? undefined
-        : typeof body.assigneeId === "string"
-          ? body.assigneeId.trim()
-          : ""
-
-    let normalizedAssigneeIds: Array<string | null> | undefined
-    if (rawAssigneeId === undefined) {
-      normalizedAssigneeIds = undefined
-    } else if (!rawAssigneeId) {
-      normalizedAssigneeIds = [null]
-    } else {
-      const teamMember = await prisma.teamMember.findFirst({
-        where: {
-          teamId: existingTask.teamId,
-          OR: [{ id: rawAssigneeId }, { userId: rawAssigneeId }],
-        },
-        select: { id: true, userId: true },
-      })
-
-      // Try both TeamMember.id and User.id to be resilient to old DB constraints.
-      if (teamMember) {
-        normalizedAssigneeIds = Array.from(new Set([teamMember.id, teamMember.userId]))
-      } else {
-        normalizedAssigneeIds = [rawAssigneeId]
-      }
+    const access = await assertTeamAccess(existingTask.teamId, session.userId)
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status })
     }
 
-    const data = {
-      ...(body.title !== undefined ? { title: body.title } : {}),
-      ...(body.description !== undefined ? { description: body.description } : {}),
-      ...(body.priority !== undefined ? { priority: body.priority } : {}),
-      ...(body.status !== undefined ? { status: body.status } : {}),
-      ...(body.deadline !== undefined
-        ? {
-            deadline:
-              body.deadline === null || body.deadline === ""
-                ? null
-                : typeof body.deadline === "string"
-                  ? (() => {
-                      const d = new Date(body.deadline)
-                      if (Number.isNaN(d.getTime())) {
-                        throw new Error("Invalid deadline")
-                      }
-                      return d
-                    })()
-                  : null,
-          }
-        : {}),
-    }
+    // === Основные данные + дедлайн ===
+    const updateData: any = {}
 
-    let task
-    if (normalizedAssigneeIds === undefined) {
-      try {
-        task = await prisma.task.update({
-          where: { id },
-          data,
-          select: taskResponseSelect,
-        })
-      } catch (error: any) {
-        if (!isMissingTaskDeadlineColumn(error) || body.deadline === undefined) {
-          throw error
+    if (body.title !== undefined) updateData.title = body.title
+    if (body.description !== undefined) updateData.description = body.description
+    if (body.priority !== undefined) updateData.priority = body.priority
+    if (body.status !== undefined) updateData.status = body.status
+
+    // Дедлайн — максимально просто
+    if (body.deadline !== undefined) {
+      if (body.deadline === null || body.deadline === "" || body.deadline === "null") {
+        updateData.deadline = null
+      } else if (typeof body.deadline === "string") {
+        const date = new Date(body.deadline)
+        if (isNaN(date.getTime())) {
+          return NextResponse.json({ error: "Некорректный формат даты" }, { status: 400 })
         }
-        const { deadline: _deadline, ...dataWithoutDeadline } = data
-        task = await prisma.task.update({
-          where: { id },
-          data: dataWithoutDeadline,
-          select: taskResponseSelect,
-        })
-      }
-    } else {
-      let lastError: any = null
-      for (const candidate of normalizedAssigneeIds) {
-        try {
-          task = await prisma.task.update({
-            where: { id },
-            data: {
-              ...data,
-              assigneeId: candidate,
-            },
-            select: taskResponseSelect,
-          })
-          break
-        } catch (error: any) {
-          if (isMissingTaskDeadlineColumn(error) && body.deadline !== undefined) {
-            const { deadline: _deadline, ...dataWithoutDeadline } = data
-            try {
-              task = await prisma.task.update({
-                where: { id },
-                data: {
-                  ...dataWithoutDeadline,
-                  assigneeId: candidate,
-                },
-                select: taskResponseSelect,
-              })
-              break
-            } catch (fallbackError: any) {
-              if (fallbackError?.code !== "P2003") {
-                throw fallbackError
-              }
-              lastError = fallbackError
-              continue
-            }
-          }
-
-          if (error?.code !== "P2003") {
-            throw error
-          }
-          lastError = error
-        }
-      }
-
-      if (!task) {
-        if (normalizedAssigneeIds.length === 1 && normalizedAssigneeIds[0] === null) {
-          task = await prisma.task.update({
-            where: { id },
-            data: {
-              ...data,
-              assigneeId: null,
-            },
-            select: taskResponseSelect,
-          })
-        } else if (lastError) {
-          throw lastError
-        }
+        updateData.deadline = date
       }
     }
 
-    if (!task) {
-      return NextResponse.json({ error: "Не удалось обновить исполнителя задачи" }, { status: 400 })
-    }
+    const updatedTask = await prisma.task.update({
+      where: { id },
+      data: updateData,
+      select: taskResponseSelect,
+    })
 
-    const hydratedTask = await hydrateTaskAssignee(task)
+    const hydratedTask = await hydrateTaskAssignee(updatedTask)
 
     return NextResponse.json({ task: hydratedTask })
+
   } catch (error: any) {
     console.error("[v0] Ошибка обновления задачи:", error)
+    
+    if (error.message?.includes("date") || error.message?.includes("Invalid")) {
+      return NextResponse.json({ error: "Некорректный формат даты дедлайна" }, { status: 400 })
+    }
+
     return NextResponse.json({ error: "Внутренняя ошибка сервера" }, { status: 500 })
   }
 }
@@ -249,7 +164,25 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: "Пользователь не авторизован" }, { status: 401 })
     }
 
-    const { id } = await params
+    const rawParams = await params
+    const paramResult = taskIdParamsSchema.safeParse(rawParams)
+    if (!paramResult.success) {
+      return NextResponse.json({ error: "Некорректный идентификатор задачи" }, { status: 400 })
+    }
+    const { id } = paramResult.data
+
+    const existing = await prisma.task.findUnique({
+      where: { id },
+      select: { teamId: true },
+    })
+    if (!existing) {
+      return NextResponse.json({ error: "Task not found" }, { status: 404 })
+    }
+
+    const access = await assertTeamAccess(existing.teamId, session.userId)
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status })
+    }
 
     await prisma.task.delete({
       where: { id },

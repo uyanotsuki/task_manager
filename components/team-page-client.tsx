@@ -96,12 +96,11 @@ export function TeamPageClient({ team, currentUserId }: TeamPageClientProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-        {/* <SidebarTrigger /> */}
         <div className="container flex flex-1 items-center gap-4">
           <Link href="/dashboard">
             <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
+              <ArrowLeft className="h-2 w-2 mr-2" />
+            {/* Назад */}
             </Button>
           </Link>
           <div className="flex-1">
@@ -109,7 +108,7 @@ export function TeamPageClient({ team, currentUserId }: TeamPageClientProps) {
             <p className="text-sm text-muted-foreground">{teamState.description}</p>
           </div>
           <div>
-            {isAdmin ? <Button onClick={openEdit}>Редактировать доску</Button> : null}
+            {isAdmin ? <Button onClick={openEdit}>Редактировать проект</Button> : null}
           </div>
         </div>
       </header>

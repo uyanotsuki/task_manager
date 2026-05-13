@@ -1,10 +1,15 @@
 import { redirect } from "next/navigation"
+import { getSession } from "@/lib/auth"
 import { isTransientPrismaConnectionError, prisma, withPrismaRetry } from "@/lib/prisma"
-import { getSessionUserId } from "@/lib/session"
 import { ProfilePageClient } from "@/components/profile-page-client"
 
 export default async function ProfilePage() {
-  const userId = await getSessionUserId()
+  const session = await getSession()
+  if (!session) {
+    redirect("/login")
+  }
+
+  const userId = session.userId
 
   let user: { id: string; name: string; email: string; createdAt: Date } | null = null
   try {

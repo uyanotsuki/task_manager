@@ -81,8 +81,7 @@ export function SettingsPageClient({ user }: { user: SettingsUser }) {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-background sticky top-0 z-10">
         <div className="container mx-auto px-4 py-3 flex items-center gap-4">
-          <SidebarTrigger />
-          <h1 className="text-xl font-semibold">Настройки</h1>
+          <h1 className="text-2xl font-semibold">Настройки</h1>
         </div>
       </header>
 
@@ -96,7 +95,7 @@ export function SettingsPageClient({ user }: { user: SettingsUser }) {
               <Label htmlFor="email">Почта аккаунта</Label>
               <Input id="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
               <p className="text-sm text-muted-foreground">
-                Сейчас “отправка письма” мокнута: мы просто имитируем отправку, а код всегда один.
+              В текущей реализации отправка письма реализована через мок-заглушку — процесс только имитируется и всегда завершается успешно.
               </p>
             </div>
 
