@@ -11,7 +11,15 @@ export default async function ProfilePage() {
 
   const userId = session.userId
 
-  let user: { id: string; name: string; email: string; createdAt: Date } | null = null
+  let user: {
+    id: string
+    name: string
+    email: string
+    avatarUrl: string | null
+    createdAt: Date
+    updatedAt: Date
+  } | null = null
+
   try {
     user = await withPrismaRetry(() =>
       prisma.user.findUnique({
@@ -20,7 +28,9 @@ export default async function ProfilePage() {
           id: true,
           name: true,
           email: true,
+          avatarUrl: true,
           createdAt: true,
+          updatedAt: true,
         },
       }),
     )
@@ -38,6 +48,7 @@ export default async function ProfilePage() {
   let tasksAdded = 0
   let tasksAssigned = 0
   let tasksCompleted = 0
+
   try {
     ;[projectsCount, tasksAdded, tasksAssigned, tasksCompleted] = await withPrismaRetry(() =>
       Promise.all([
@@ -46,12 +57,8 @@ export default async function ProfilePage() {
             OR: [{ creatorId: userId }, { members: { some: { userId } } }],
           },
         }),
-        prisma.task.count({
-          where: { userId },
-        }),
-        prisma.task.count({
-          where: { assignee: { userId } },
-        }),
+        prisma.task.count({ where: { userId } }),
+        prisma.task.count({ where: { assignee: { userId } } }),
         prisma.task.count({
           where: { assignee: { userId }, status: "complete" },
         }),
@@ -68,7 +75,9 @@ export default async function ProfilePage() {
       user={{
         name: user.name,
         email: user.email,
+        avatarUrl: user.avatarUrl,
         createdAt: user.createdAt.toISOString(),
+        updatedAt: user.updatedAt.toISOString(),
       }}
       stats={{
         projectsCount,

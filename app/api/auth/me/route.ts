@@ -6,7 +6,6 @@ import { mePatchBodySchema, parseJson } from "@/lib/api-schemas"
 export async function GET() {
   try {
     const session = await getSession()
-
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -17,7 +16,9 @@ export async function GET() {
         id: true,
         email: true,
         name: true,
+        avatarUrl: true,
         createdAt: true,
+        updatedAt: true,
       },
     })
 
@@ -52,25 +53,33 @@ export async function PATCH(request: Request) {
     }
 
     const { name, email } = parsed.data
-    const emailNormalized = email.toLowerCase()
+    const emailNormalized = email?.toLowerCase()
 
-    const existingByEmail = await prisma.user.findUnique({
-      where: { email: emailNormalized },
-      select: { id: true },
-    })
+    // Проверка уникальности email
+    if (emailNormalized) {
+      const existingByEmail = await prisma.user.findUnique({
+        where: { email: emailNormalized },
+        select: { id: true },
+      })
 
-    if (existingByEmail && existingByEmail.id !== session.userId) {
-      return NextResponse.json({ error: "Эта электронная почта уже используется" }, { status: 400 })
+      if (existingByEmail && existingByEmail.id !== session.userId) {
+        return NextResponse.json({ error: "Эта электронная почта уже используется" }, { status: 400 })
+      }
     }
 
     const user = await prisma.user.update({
       where: { id: session.userId },
-      data: { name, email: emailNormalized },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(emailNormalized && { email: emailNormalized }),
+      },
       select: {
         id: true,
         email: true,
         name: true,
+        avatarUrl: true,       
         createdAt: true,
+        updatedAt: true,
       },
     })
 

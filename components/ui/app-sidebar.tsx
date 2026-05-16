@@ -15,13 +15,14 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { UserAvatar } from "@/components/ui/avatar"
 
 export function AppSidebar() {
   const { state, toggleSidebar } = useSidebar()
 
   const [user, setUser] = useState<any>(null)
 
+  // Загрузка данных пользователя
   useEffect(() => {
     fetch('/api/auth/me', { 
       method: 'GET',
@@ -32,19 +33,36 @@ export function AppSidebar() {
       .catch(err => console.error("Failed to fetch user:", err))
   }, [])
 
-  const rawName = user?.name || user?.username
-  const displayName = typeof rawName === "string" ? rawName.trim() : ""
+  // Обновление аватарки и данных в реальном времени (после загрузки в профиле)
+  useEffect(() => {
+    const onUserUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail
+      if (detail && typeof detail === "object") {
+        setUser(detail as Record<string, unknown>)
+      }
+    }
+    window.addEventListener("qm-user-updated", onUserUpdated)
+    return () => window.removeEventListener("qm-user-updated", onUserUpdated)
+  }, [])
 
-  const initials = displayName
-    .split(" ")
-    .map((n: string) => n[0] || "")
-    .join("")
-    .toUpperCase()
-    .slice(0, 2)
+  const displayName = user?.name?.trim() || "Пользователь"
+
+  const avatarUrl = 
+    typeof user?.avatarUrl === "string" && user.avatarUrl.length > 0 
+      ? user.avatarUrl 
+      : null
+
+  const imageCacheKey = 
+    user?.updatedAt 
+      ? typeof user.updatedAt === "string" 
+        ? user.updatedAt 
+        : new Date(user.updatedAt).toISOString()
+      : null
 
   return (
     <Sidebar collapsible="icon" variant="inset">
       <SidebarContent>
+        {/* Верхняя часть */}
         <div className="px-4 py-6 flex items-center gap-3">
           {state !== "collapsed" && (
             <SidebarMenuButton
@@ -69,7 +87,7 @@ export function AppSidebar() {
           </div>
         </div>
 
-        {/* Основное меню */}
+        {/* Меню */}
         <SidebarMenu className="px-3 space-y-1 mt-2">
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
@@ -101,19 +119,24 @@ export function AppSidebar() {
       </SidebarContent>
 
       <div className="flex justify-center py-2">
-          <ThemeToggle />
-        </div>
-      {/* Footer */}
+        <ThemeToggle />
+      </div>
+
+      {/* Footer с аватаркой */}
       <SidebarFooter className="border-t border-border p-4">
         <div className="flex flex-col gap-2">
           {state !== "collapsed" && (
-            <div className="flex items-center justify-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
-            onClick={() => window.location.href = '/profile'} >
-              <Avatar className="h-11 w-11 shrink-0">
-                <AvatarFallback className="bg-violet-600 text-base font-semibold">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
+            <div 
+              className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
+              onClick={() => window.location.href = '/profile'}
+            >
+              <UserAvatar
+                className="h-11 w-11 shrink-0"
+                name={displayName}
+                imageUrl={avatarUrl}
+                imageCacheKey={imageCacheKey}
+                fallbackClassName="bg-violet-600 text-base font-semibold"
+              />
 
               <div className="flex flex-col min-w-0">
                 <p className="font-medium text-sm truncate">{displayName}</p>
@@ -121,6 +144,7 @@ export function AppSidebar() {
             </div>
           )}
 
+          {/* Кнопка Выход */}
           <SidebarMenuButton 
             onClick={async () => {
               try {
@@ -141,9 +165,6 @@ export function AppSidebar() {
             {state !== "collapsed" && <span className="ml-2">Выход</span>}
           </SidebarMenuButton>
         </div>
-        {/* <div className="flex justify-center py-2">
-          <ThemeToggle />
-        </div> */}
       </SidebarFooter>
     </Sidebar>
   )

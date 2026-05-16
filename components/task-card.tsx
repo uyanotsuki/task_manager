@@ -73,7 +73,8 @@ export function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
               variant="outline"
               className={cn(
                 "text-xs",
-                priorityColors[task.priority]
+                priorityColors[task.priority as keyof typeof priorityColors] ??
+                  priorityColors.medium
               )}
             >
               {task.priority}
