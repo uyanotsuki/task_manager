@@ -6,6 +6,7 @@ import { UserAvatar } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { invalidateAvatarDisplayCache } from "@/hooks/use-avatar"
 import { notifyUserUpdated } from "@/lib/user-events"
 import { Camera } from "lucide-react"
 import { FolderKanban, CheckCircle2, Flame, BarChart3,} from "lucide-react"
@@ -116,6 +117,7 @@ export function ProfilePageClient({
       }
 
       setProfile(next)
+      invalidateAvatarDisplayCache()
       notifyUserUpdated(u)
     } catch (e: unknown) {
       setAvatarError(
@@ -169,6 +171,7 @@ export function ProfilePageClient({
       }
 
       setProfile(next)
+      invalidateAvatarDisplayCache()
       notifyUserUpdated(u)
     } catch (e: unknown) {
       setAvatarError(

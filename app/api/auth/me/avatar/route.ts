@@ -2,96 +2,143 @@ import { NextResponse } from "next/server"
 import { put, del } from "@vercel/blob"
 
 import { getSession } from "@/lib/auth"
+import {
+  AVATAR_MIME_TO_EXT,
+  MAX_AVATAR_BYTES,
+  avatarBlobPathname,
+  removeStoredAvatar,
+} from "@/lib/avatar-storage"
 import { prisma } from "@/lib/prisma"
 
-const MAX_SIZE = 2 * 1024 * 1024 // 2MB
+const userSelect = {
+  id: true,
+  email: true,
+  name: true,
+  avatarUrl: true,
+  createdAt: true,
+  updatedAt: true,
+} as const
+
+function logAvatarError(
+  operation: "POST" | "DELETE",
+  error: unknown,
+  context?: Record<string, unknown>,
+) {
+  console.error(`[avatar] ${operation} error:`, {
+    ...context,
+    message: error instanceof Error ? error.message : String(error),
+    stack: error instanceof Error ? error.stack : undefined,
+  })
+}
 
 export async function POST(request: Request) {
+  const session = await getSession()
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  let uploadedBlobUrl: string | null = null
+
   try {
-    const session = await getSession()
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const formData = await request.formData()
-    const file = formData.get("file") as File | null
+    const file = formData.get("file")
 
-    if (!file) return NextResponse.json({ error: "Файл не найден" }, { status: 400 })
-    if (file.size > MAX_SIZE) {
-      return NextResponse.json({ error: "Файл слишком большой (макс. 2 МБ)" }, { status: 400 })
+    if (!(file instanceof File)) {
+      return NextResponse.json(
+        { error: "Нужно выбрать файл изображения" },
+        { status: 400 },
+      )
     }
 
-    // Удаляем старый аватар
+    if (file.size === 0) {
+      return NextResponse.json({ error: "Пустой файл" }, { status: 400 })
+    }
+
+    if (file.size > MAX_AVATAR_BYTES) {
+      return NextResponse.json(
+        { error: "Файл слишком большой (максимум 2 МБ)" },
+        { status: 400 },
+      )
+    }
+
+    if (!AVATAR_MIME_TO_EXT[file.type]) {
+      return NextResponse.json(
+        { error: "Допустимы только изображения JPEG, PNG, WebP и GIF" },
+        { status: 400 },
+      )
+    }
+
     const existing = await prisma.user.findUnique({
       where: { id: session.userId },
-      select: { avatarUrl: true }
+      select: { avatarUrl: true },
     })
 
     if (existing?.avatarUrl) {
-      try {
-        await del(existing.avatarUrl)
-      } catch (e) {
-        console.warn("Failed to delete old avatar:", e)
-      }
+      await removeStoredAvatar(existing.avatarUrl)
     }
 
-    // Загружаем новый файл в Vercel Blob
-    const blob = await put(`avatars/${session.userId}-${Date.now()}`, file, {
-      access: "public",
-      addRandomSuffix: true,
+    const pathname = avatarBlobPathname(session.userId, file.type)
+
+    const blob = await put(pathname, file, {
+      access: "private",
+      addRandomSuffix: false,
     })
 
-    // Обновляем в базе
+    uploadedBlobUrl = blob.url
+
     const user = await prisma.user.update({
       where: { id: session.userId },
       data: { avatarUrl: blob.url },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        avatarUrl: true,
-        updatedAt: true,
-      }
+      select: userSelect,
     })
 
     return NextResponse.json({ user })
-  } catch (error: any) {
-    console.error("[avatar] POST error:", error)
-    return NextResponse.json({ error: "Не удалось загрузить аватар" }, { status: 500 })
+  } catch (error) {
+    if (uploadedBlobUrl) {
+      try {
+        await del(uploadedBlobUrl)
+      } catch (rollbackError) {
+        logAvatarError("POST", rollbackError, {
+          userId: session.userId,
+          phase: "rollback",
+          blobUrl: uploadedBlobUrl,
+        })
+      }
+    }
+
+    logAvatarError("POST", error, { userId: session.userId })
+    return NextResponse.json(
+      { error: "Не удалось загрузить аватар" },
+      { status: 500 },
+    )
   }
 }
 
 export async function DELETE() {
-  try {
-    const session = await getSession()
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+  const session = await getSession()
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
 
-    const user = await prisma.user.findUnique({
+  try {
+    const existing = await prisma.user.findUnique({
       where: { id: session.userId },
-      select: { avatarUrl: true }
+      select: { avatarUrl: true },
     })
 
-    if (user?.avatarUrl) {
-      await del(user.avatarUrl).catch(() => {})
+    if (existing?.avatarUrl) {
+      await removeStoredAvatar(existing.avatarUrl)
     }
 
-    const updatedUser = await prisma.user.update({
+    const user = await prisma.user.update({
       where: { id: session.userId },
       data: { avatarUrl: null },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        avatarUrl: true,
-        updatedAt: true,
-      }
+      select: userSelect,
     })
 
-    return NextResponse.json({ user: updatedUser })
+    return NextResponse.json({ user })
   } catch (error) {
-    console.error("[avatar] DELETE error:", error)
+    logAvatarError("DELETE", error, { userId: session.userId })
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

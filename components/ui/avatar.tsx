@@ -3,6 +3,7 @@
 import * as React from 'react'
 import * as AvatarPrimitive from '@radix-ui/react-avatar'
 
+import { useAvatar } from '@/hooks/use-avatar'
 import { cn } from '@/lib/utils'
 
 function initialsFromName(name: string): string {
@@ -16,7 +17,6 @@ function initialsFromName(name: string): string {
     .slice(0, 2)
 }
 
-// Базовые компоненты
 function Avatar({
   className,
   ...props
@@ -62,7 +62,17 @@ function AvatarFallback({
   )
 }
 
-// Улучшенный компонент с поддержкой аватарки пользователя
+type UserAvatarProps = {
+  name: string
+  /** Private Blob URL, public Blob URL или legacy /uploads/avatars/... */
+  imageUrl?: string | null
+  className?: string
+  fallbackClassName?: string
+  imageClassName?: string
+  /** user.updatedAt — сброс кэша после смены аватара */
+  imageCacheKey?: string | Date | null
+}
+
 function UserAvatar({
   name,
   imageUrl,
@@ -70,29 +80,25 @@ function UserAvatar({
   fallbackClassName,
   imageClassName,
   imageCacheKey,
-}: {
-  name: string
-  imageUrl?: string | null
-  className?: string
-  fallbackClassName?: string
-  imageClassName?: string
-  /** Для инвалидации кэша браузера при смене аватарки */
-  imageCacheKey?: string | null
-}) {
+}: UserAvatarProps) {
   const initials = initialsFromName(name)
+  const { src, error } = useAvatar(imageUrl, imageCacheKey)
 
-  const src = imageUrl
-    ? imageCacheKey
-      ? `${imageUrl}${imageUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(imageCacheKey)}`
-      : imageUrl
-    : undefined
+  const showImage = Boolean(src) && !error
 
   return (
     <Avatar className={className}>
-      {src && <AvatarImage src={src} alt="" className={imageClassName} />}
-      <AvatarFallback className={fallbackClassName}>
-        {initials}
-      </AvatarFallback>
+      {showImage ? (
+        <AvatarImage
+          src={src}
+          alt={name}
+          className={imageClassName}
+          onError={() => {
+            // Radix покажет fallback при битой ссылке
+          }}
+        />
+      ) : null}
+      <AvatarFallback className={fallbackClassName}>{initials}</AvatarFallback>
     </Avatar>
   )
 }
