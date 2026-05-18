@@ -545,7 +545,7 @@ export function ProfilePageClient({
                     </div>
 
                     <div className="mt-1 text-3xl font-bold">
-                      {stats.tasksStats}
+                      {stats.tasksAdded + stats.tasksAssigned}
                     </div>
                   </div>
                 </div>
