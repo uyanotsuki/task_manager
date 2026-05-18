@@ -260,7 +260,7 @@ export function ProfilePageClient({
             <CardContent className="flex flex-col gap-6 p-8 lg:flex-row lg:items-center">
               
               {/* AVATAR */}
-              <div className="flex flex-col items-center lg:items-start">
+              <div className="flex flex-col items-center lg:items-center">
                 <div className="relative">
                   <UserAvatar
                     className="h-24 w-24 ring-4 ring-white/40 dark:ring-white/10 shadow-sm"

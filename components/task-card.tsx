@@ -13,6 +13,8 @@ interface TaskCardProps {
   task: BoardTask
   onEdit: (task: BoardTask) => void
   onDelete: (taskId: string) => void
+  /** Для DragOverlay — без sortable-хуков */
+  dragOverlay?: boolean
 }
 
 const priorityColors = {
@@ -21,16 +23,31 @@ const priorityColors = {
   high: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20",
 } as const
 
-export function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({
-      id: task.id,
-    })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
+export function TaskCard({
+  task,
+  onEdit,
+  onDelete,
+  dragOverlay = false,
+}: TaskCardProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
     transition,
-  }
+    isDragging,
+  } = useSortable({
+    id: task.id,
+    data: { type: "task", status: task.status },
+    disabled: dragOverlay,
+  })
+
+  const style = dragOverlay
+    ? undefined
+    : {
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }
 
   const formattedDeadline = (() => {
     if (!task.deadline) return "не установлена"
@@ -41,40 +58,43 @@ export function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
 
   return (
     <IOSCard
-      ref={setNodeRef}
+      ref={dragOverlay ? undefined : setNodeRef}
       style={style}
       className={cn(
-        "p-4 cursor-pointer",
-        isDragging && "opacity-60 scale-[0.98]"
+        "p-4 transition",
+        !dragOverlay && isDragging && "pointer-events-none opacity-40",
       )}
     >
       <div className="flex items-start gap-3">
         <button
-          className="mt-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
-          {...attributes}
-          {...listeners}
+          type="button"
+          className={cn(
+            "mt-1 shrink-0 cursor-grab touch-none text-muted-foreground",
+            "rounded-md hover:bg-accent/50 hover:text-foreground",
+            "active:cursor-grabbing",
+          )}
+          aria-label="Перетащить задачу"
+          {...(dragOverlay ? {} : { ...attributes, ...listeners })}
         >
           <GripVertical className="h-5 w-5" />
         </button>
 
-        <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-sm mb-1 line-clamp-2">
-            {task.title}
-          </h3>
+        <div className="min-w-0 flex-1">
+          <h3 className="mb-1 line-clamp-2 text-sm font-semibold">{task.title}</h3>
 
-          {task.description && (
-            <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
+          {task.description ? (
+            <p className="mb-2 line-clamp-2 text-xs text-muted-foreground">
               {task.description}
             </p>
-          )}
+          ) : null}
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex flex-wrap items-center gap-2">
             <Badge
               variant="outline"
               className={cn(
                 "text-xs",
                 priorityColors[task.priority as keyof typeof priorityColors] ??
-                  priorityColors.medium
+                  priorityColors.medium,
               )}
             >
               {task.priority}
@@ -96,8 +116,12 @@ export function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
           <Button
             size="icon"
             variant="ghost"
-            className="h-8 w-8 hover:bg-accent/50 transition rounded-lg"
-            onClick={() => onEdit(task)}
+            className="h-8 w-8 rounded-lg transition hover:bg-accent/50"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              onEdit(task)
+            }}
           >
             <Pencil className="h-4 w-4" />
           </Button>
@@ -105,8 +129,12 @@ export function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
           <Button
             size="icon"
             variant="ghost"
-            className="h-8 w-8 hover:bg-red-500/10 transition rounded-lg"
-            onClick={() => onDelete(task.id)}
+            className="h-8 w-8 rounded-lg transition hover:bg-red-500/10"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(task.id)
+            }}
           >
             <Trash2 className="h-4 w-4" />
           </Button>

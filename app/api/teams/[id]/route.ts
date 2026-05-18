@@ -150,11 +150,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession()
     if (!session) {
-      return NextResponse.json({ error: "Пользователь не авторизован" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const rawParams = await params
@@ -166,23 +166,28 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const team = await prisma.team.findUnique({
       where: { id },
+      select: { id: true, creatorId: true },
     })
 
     if (!team) {
-      return NextResponse.json({ error: "Проект на найден" }, { status: 404 })
+      return NextResponse.json({ error: "Проект не найден" }, { status: 404 })
     }
 
     if (team.creatorId !== session.userId) {
-      return NextResponse.json({ error: "Только тот, кто добавил проект может удалить его." }, { status: 403 })
+      return NextResponse.json(
+        { error: "Только создатель проекта может удалить его" },
+        { status: 403 },
+      )
     }
 
+    // Каскадно удаляет участников и задачи (onDelete: Cascade в schema)
     await prisma.team.delete({
       where: { id },
     })
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("[v0] Ошибка удаления проекта:", error)
-    return NextResponse.json({ error: "Внутрення ошибка сервера" }, { status: 500 })
+    console.error("[v0] Delete team error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

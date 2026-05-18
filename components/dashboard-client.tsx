@@ -91,8 +91,24 @@ export function DashboardClient({ user }: { user: User }) {
             </p>
           </div>
 
-          {/* Кнопка всегда справа сверху, когда проекты уже есть */}
-          <Button onClick={() => setDialogOpen(true)} size="lg">
+          <Button
+            onClick={() => setDialogOpen(true)}
+            size="lg"
+            className="
+              rounded-xl
+              border border-violet-500/10
+              bg-violet-500/40
+              backdrop-blur-md
+              text-foreground
+              transition-all duration-300
+              hover:bg-white/60
+              hover:scale-[1.02]
+              dark:bg-white/5
+              dark:hover:bg-white/10
+              dark:border-white/10
+              hover:shadow-[0_0_25px_rgba(139,92,246,0.25)]
+            "
+          >
             <Plus className="h-5 w-5 mr-2" />
             Добавить проект
           </Button>
@@ -110,7 +126,7 @@ export function DashboardClient({ user }: { user: User }) {
             </Button>
           </div>
         ) : teams.length === 0 ? (
-          /* Пустое состояние — кнопка по центру */
+
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="text-7xl mb-6">🎯</div>
             <h2 className="text-2xl font-semibold mb-3">У вас пока нет проектов</h2>
