@@ -218,7 +218,7 @@ export function AnalyticsDashboard({ teamId }: AnalyticsDashboardProps) {
 
         <Card>
           <CardHeader>
-            <CardTitle>Стаистика приоритета</CardTitle>
+            <CardTitle>Статистика приоритета</CardTitle>
             <CardDescription>Группировка задач по приоритету</CardDescription>
           </CardHeader>
           <CardContent>
