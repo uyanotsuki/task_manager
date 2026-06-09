@@ -125,6 +125,8 @@ export function TaskBoard({ teamId, teamMembers }: TaskBoardProps) {
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   // ИСПРАВЛЕНИЕ: синхронный ref вместо side-effect внутри setState (React 19 не гарантирует синхронность)
   const tasksRef = useRef<Task[]>([])
@@ -391,17 +393,25 @@ export function TaskBoard({ teamId, teamMembers }: TaskBoardProps) {
     setDialogOpen(true)
   }
 
-  const handleDeleteTask = async (taskId: string) => {
-    if (!confirm("Вы действительно хотите удалить эту задачу?")) return
+  const handleDeleteTask = (taskId: string) => {
+    setDeleteTaskId(taskId)
+  }
 
+  const confirmDeleteTask = async () => {
+    if (!deleteTaskId) return
+
+    setDeleteLoading(true)
     try {
-      await fetchWithTimeout(`/api/tasks/${taskId}`, {
+      await fetchWithTimeout(`/api/tasks/${deleteTaskId}`, {
         method: "DELETE",
       })
 
-      commitTasks(tasksRef.current.filter((t) => t.id !== taskId))
+      commitTasks(tasksRef.current.filter((t) => t.id !== deleteTaskId))
+      setDeleteTaskId(null)
     } catch (error) {
       console.error("[v0] Delete task error:", error)
+    } finally {
+      setDeleteLoading(false)
     }
   }
 
@@ -566,6 +576,37 @@ export function TaskBoard({ teamId, teamMembers }: TaskBoardProps) {
           email: m.user.email,
         }))}
       />
+
+      {deleteTaskId ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="mx-4 w-full max-w-md rounded-2xl border bg-background p-6 shadow-lg">
+            <h2 className="text-lg font-semibold">Удалить задачу?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Вы действительно хотите удалить эту задачу? Это действие нельзя отменить.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDeleteTaskId(null)}
+                disabled={deleteLoading}
+                className="rounded-xl"
+              >
+                Отмена
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => void confirmDeleteTask()}
+                disabled={deleteLoading}
+                className="rounded-xl"
+              >
+                {deleteLoading ? "Удаление..." : "Удалить"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   )
 }

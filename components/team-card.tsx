@@ -63,7 +63,7 @@ export function TeamCard({ team, currentUserId, onUpdate }: TeamCardProps) {
       onClick={openTeam}
     >
       {isCreator ? (
-        <div className="absolute top-3 right-3 z-10">
+        <div className="absolute top-5 right-3 z-10">
           <TeamDeleteButton teamId={team.id} teamName={team.name} onDeleted={onUpdate} />
         </div>
       ) : null}

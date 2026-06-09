@@ -95,11 +95,27 @@ export function SettingsPageClient({ user }: { user: SettingsUser }) {
               <Label htmlFor="email">Почта аккаунта</Label>
               <Input id="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
               <p className="text-sm text-muted-foreground">
-              В текущей реализации отправка письма реализована через мок-заглушку — процесс только имитируется и всегда завершается успешно.
+              В текущей реализации отправка письма на почту реализована через мок-заглушку. Процесс только имитируется и всегда завершается успешно.
               </p>
             </div>
 
-            <Button onClick={requestReset} disabled={requesting || !email}>
+            <Button
+              onClick={requestReset}
+              disabled={requesting || !email}
+              className="
+                rounded-xl
+                border border-violet-500/40
+                bg-violet-500
+                text-white
+                transition-all duration-300
+                hover:scale-[1.02]
+                hover:bg-violet-700
+                hover:shadow-[0_0_25px_rgba(139,92,246,0.25)]
+                active:scale-[0.98]
+                dark:border-white/10 dark:bg-violet-500 dark:hover:bg-white/20
+                disabled:opacity-50
+              "
+            >
               {requesting ? "Отправляем..." : "Отправить код на почту"}
             </Button>
 

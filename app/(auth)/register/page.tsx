@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -15,10 +14,54 @@ export default function RegisterPage() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
+  // ✅ Функция валидации пароля
+  const validatePassword = (pass: string): string | null => {
+    if (pass.length < 8) {
+      return "Пароль должен содержать минимум 8 символов"
+    }
+    if (!/[A-Z]/.test(pass)) {
+      return "Пароль должен содержать хотя бы одну заглавную букву (A-Z)"
+    }
+    if (!/[a-z]/.test(pass)) {
+      return "Пароль должен содержать хотя бы одну строчную букву (a-z)"
+    }
+    if (!/[0-9]/.test(pass)) {
+      return "Пароль должен содержать хотя бы одну цифру (0-9)"
+    }
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(pass)) {
+      return "Пароль должен содержать хотя бы один спецсимвол (!@#$%^&* и т.д.)"
+    }
+    return null
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
     setError("")
+    
+    // ✅ Проверяем имя
+    if (!name.trim()) {
+      setError("Введите ваше имя")
+      return
+    }
+    
+    // ✅ Проверяем email
+    if (!email.trim()) {
+      setError("Введите email")
+      return
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      setError("Введите корректный email адрес")
+      return
+    }
+    
+    // ✅ Проверяем пароль
+    const passwordError = validatePassword(password)
+    if (passwordError) {
+      setError(passwordError)
+      return
+    }
+    
     setLoading(true)
 
     try {
@@ -69,10 +112,8 @@ export default function RegisterPage() {
         />
       </div>
 
-
       {/* CONTENT */}
       <div className="relative z-10 flex min-h-screen items-center justify-center px-6">
-        {/* <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 backdrop-blur-2xl p-8 shadow-2xl"> */}
         <div
           className="
             relative
@@ -154,9 +195,13 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={8}
                 className="h-12 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-white placeholder:text-white/25 outline-none transition focus:border-[#807CEC] focus:bg-white/[0.07]"
               />
+              
+              {/* ✅ Подсказка о требованиях к паролю */}
+              <p className="mt-2 text-xs text-white/40 leading-relaxed">
+                Пароль должен содержать минимум 8 символов, включая заглавные и строчные буквы, цифры и спецсимволы
+              </p>
             </div>
 
             {/* BUTTON */}

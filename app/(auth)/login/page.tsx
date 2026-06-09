@@ -33,7 +33,7 @@ export default function LoginPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || "Ошибка входа")
+        setError("Неверный email или пароль")
         return
       }
 

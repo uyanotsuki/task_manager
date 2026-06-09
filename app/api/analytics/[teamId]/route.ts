@@ -26,6 +26,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: "Нет доступа к этому проекту" }, { status: access.status })
     }
 
+    // ✅ Исправленный запрос - берем assignee (исполнителя)
     const tasks = await prisma.task.findMany({
       where: { teamId },
       select: {
@@ -34,43 +35,58 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         priority: true,
         createdAt: true,
         updatedAt: true,
-        user: {
+        assignee: {
           select: {
             id: true,
-            name: true,
-          },
+            user: {
+              select: {
+                id: true,
+                name: true,
+              }
+            }
+          }
         },
       },
     })
 
-    // Расчет показателей статистики
+    // Общая статистика
     const totalTasks = tasks.length
     const todoTasks = tasks.filter((t) => t.status === "todo").length
     const inProgressTasks = tasks.filter((t) => t.status === "inprogress").length
     const completeTasks = tasks.filter((t) => t.status === "complete").length
 
-    // Распределение приоритетов
     const highPriority = tasks.filter((t) => t.priority === "high").length
     const mediumPriority = tasks.filter((t) => t.priority === "medium").length
     const lowPriority = tasks.filter((t) => t.priority === "low").length
 
-    // Задачи у пользователя
-    const tasksByUser = tasks.reduce(
-      (acc, task) => {
-        const userName = task.user.name
-        if (!acc[userName]) {
-          acc[userName] = { total: 0, completed: 0 }
-        }
-        acc[userName].total++
-        if (task.status === "complete") {
-          acc[userName].completed++
-        }
-        return acc
-      },
-      {} as Record<string, { total: number; completed: number }>,
-    )
+    // ✅ Статистика по исполнителям (исправлено)
+    const tasksByUserMap: Record<string, { name: string; total: number; completed: number }> = {}
 
-    // Задача была добавлена в течении послежних 7 дней 
+    tasks.forEach((task) => {
+      // Берем assignee (исполнителя), а не user (автора)
+      const assignee = task.assignee
+      if (!assignee?.user?.id) return
+
+      const userId = assignee.user.id
+      const userName = assignee.user.name || "Неизвестный"
+
+      if (!tasksByUserMap[userId]) {
+        tasksByUserMap[userId] = {
+          name: userName,
+          total: 0,
+          completed: 0,
+        }
+      }
+
+      tasksByUserMap[userId].total++
+      if (task.status === "complete") {
+        tasksByUserMap[userId].completed++
+      }
+    })
+
+    const tasksByUser = Object.values(tasksByUserMap)
+
+    // Последние 7 дней (созданные задачи)
     const last7Days = Array.from({ length: 7 }, (_, i) => {
       const date = subDays(new Date(), 6 - i)
       return {
@@ -82,12 +98,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     tasks.forEach((task) => {
       const taskDate = task.createdAt.toISOString().split("T")[0]
       const dayData = last7Days.find((d) => d.date === taskDate)
-      if (dayData) {
-        dayData.count++
-      }
+      if (dayData) dayData.count++
     })
 
-    // Оценка завершенных задач за послеждние 7 дней
+    // Завершенные за 7 дней
     const completionData = Array.from({ length: 7 }, (_, i) => {
       const date = subDays(new Date(), 6 - i)
       const dateStr = date.toISOString().split("T")[0]
@@ -95,13 +109,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const dayEnd = endOfDay(date)
 
       const completedOnDay = tasks.filter(
-        (t) => t.status === "complete" && t.updatedAt >= dayStart && t.updatedAt <= dayEnd,
+        (t) => t.status === "complete" && t.updatedAt >= dayStart && t.updatedAt <= dayEnd
       ).length
 
-      return {
-        date: dateStr,
-        completed: completedOnDay,
-      }
+      return { date: dateStr, completed: completedOnDay }
     })
 
     return NextResponse.json({
@@ -116,11 +127,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         medium: mediumPriority,
         low: lowPriority,
       },
-      tasksByUser: Object.entries(tasksByUser).map(([name, data]) => ({
-        name,
-        total: data.total,
-        completed: data.completed,
-      })),
+      tasksByUser,
       tasksCreated: last7Days,
       tasksCompleted: completionData,
     })

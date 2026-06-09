@@ -127,15 +127,15 @@ export function AnalyticsDashboard({ teamId }: AnalyticsDashboardProps) {
   const completionRate = data.overview.total > 0 ? Math.round((data.overview.complete / data.overview.total) * 100) : 0
 
   const statusData = [
-    { name: "To Do", value: data.overview.todo, color: "oklch(0.627 0.265 303.9)" },
-    { name: "In Progress", value: data.overview.inProgress, color: "oklch(0.398 0.07 227.392)" },
-    { name: "Complete", value: data.overview.complete, color: "oklch(0.696 0.17 162.48)" },
+    { name: "To Do", value: data.overview.todo, color: "#b1e7fc" },
+    { name: "In Progress", value: data.overview.inProgress, color: "#faaad3" },
+    { name: "Complete", value: data.overview.complete, color: "#fffba6" },
   ]
 
   const priorityData = [
-    { name: "High", value: data.priority.high, fill: "oklch(0.637 0.237 25.331)" },
-    { name: "Medium", value: data.priority.medium, fill: "oklch(0.769 0.188 70.08)" },
-    { name: "Low", value: data.priority.low, fill: "oklch(0.488 0.243 264.376)" },
+    { name: "High", value: data.priority.high, fill: "#cd9dfa" },
+    { name: "Medium", value: data.priority.medium, fill: "#f1ffbf" },
+    { name: "Low", value: data.priority.low, fill: "#c3ff9e" },
   ]
 
   return (
@@ -190,14 +190,14 @@ export function AnalyticsDashboard({ teamId }: AnalyticsDashboardProps) {
         <Card>
           <CardHeader>
             <CardTitle>Статистика по задачам</CardTitle>
-            <CardDescription>Статистика задач по текущему статусуs</CardDescription>
+            <CardDescription>Статистика задач по текущему статусу</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer
               config={{
-                todo: { label: "To Do", color: "oklch(0.627 0.265 303.9)" },
-                inprogress: { label: "In Progress", color: "oklch(0.398 0.07 227.392)" },
-                complete: { label: "Complete", color: "oklch(0.696 0.17 162.48)" },
+                todo: { label: "To Do", color: "#b1e7fc" },      // голубой
+                inprogress: { label: "In Progress", color: "#faaad3" }, // розовый
+                complete: { label: "Complete", color: "#fffba6" },      // желтый
               }}
               className="h-[300px]"
             >
@@ -216,7 +216,7 @@ export function AnalyticsDashboard({ teamId }: AnalyticsDashboardProps) {
           </CardContent>
         </Card>
 
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle>Статистика приоритета</CardTitle>
             <CardDescription>Группировка задач по приоритету</CardDescription>
@@ -241,7 +241,34 @@ export function AnalyticsDashboard({ teamId }: AnalyticsDashboardProps) {
               </ResponsiveContainer>
             </ChartContainer>
           </CardContent>
-        </Card>
+        </Card> */}
+
+<Card>
+  <CardHeader>
+    <CardTitle>Статистика приоритета</CardTitle>
+    <CardDescription>Группировка задач по приоритету</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <ChartContainer
+      config={{
+        high: { label: "High", color: "#cd9dfa" },
+        medium: { label: "Medium", color: "#98b8d9" },
+        low: { label: "Low", color: "#c3ff9e" },
+      }}
+      className="h-[300px]"
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={priorityData}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="name" />
+          <YAxis />
+          <ChartTooltip content={<ChartTooltipContent />} />
+          <Bar dataKey="value" fill="#cd9dfa" />
+        </BarChart>
+      </ResponsiveContainer>
+    </ChartContainer>
+  </CardContent>
+</Card>
 
         <Card>
           <CardHeader>
@@ -251,7 +278,10 @@ export function AnalyticsDashboard({ teamId }: AnalyticsDashboardProps) {
           <CardContent>
             <ChartContainer
               config={{
-                count: { label: "Добавлено задач: ", color: "hsl(var(--chart-2))" },
+                count: {
+                  label: "Добавлено задач",
+                  color: "hsl(270 70% 55%)"
+                }
               }}
               className="h-[300px]"
             >
@@ -269,10 +299,10 @@ export function AnalyticsDashboard({ teamId }: AnalyticsDashboardProps) {
                   <Line
                     type="monotone"
                     dataKey="count"
-                    stroke="hsl(var(--chart-2))"
+                    stroke="var(--color-count)"
                     strokeWidth={2}
-                    dot={{ r: 4, fill: "hsl(var(--chart-2))" }}
-                    activeDot={{ r: 6, fill: "hsl(var(--chart-2))" }}
+                    dot={{ r: 4, fill: "var(--color-count)" }}
+                    activeDot={{ r: 6, fill: "var(--color-count)" }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -283,12 +313,15 @@ export function AnalyticsDashboard({ teamId }: AnalyticsDashboardProps) {
         <Card>
           <CardHeader>
             <CardTitle>Выполнено задач за последние 7 дней</CardTitle>
-            <CardDescription>Тенденция создания задач по дням</CardDescription>
+            <CardDescription>Тенденция выполнения задач по дням</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer
               config={{
-                completed: { label: "Выполнено задач: ", color: "hsl(var(--chart-3))" },
+                completed: {
+                  label: "Выполнено задач",
+                  color: "hsl(270 70% 55%)",
+                },
               }}
               className="h-[300px]"
             >
@@ -306,10 +339,10 @@ export function AnalyticsDashboard({ teamId }: AnalyticsDashboardProps) {
                   <Line
                     type="monotone"
                     dataKey="completed"
-                    stroke="hsl(var(--chart-3))"
+                    stroke="var(--color-completed)"
                     strokeWidth={2}
-                    dot={{ r: 4, fill: "hsl(var(--chart-3))" }}
-                    activeDot={{ r: 6, fill: "hsl(var(--chart-3))" }}
+                    dot={{ r: 4, fill: "var(--color-completed)" }}
+                    activeDot={{ r: 6, fill: "var(--color-completed)" }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -321,7 +354,7 @@ export function AnalyticsDashboard({ teamId }: AnalyticsDashboardProps) {
       <Card>
         <CardHeader>
           <CardTitle>Эффективность работы членов команды</CardTitle>
-          <CardDescription>Выполнение задачи членом команды</CardDescription>
+          <CardDescription>Сравнение общего количества и выполненных задач по каждому участнику</CardDescription>
         </CardHeader>
         <CardContent>
           <ChartContainer
@@ -338,8 +371,8 @@ export function AnalyticsDashboard({ teamId }: AnalyticsDashboardProps) {
                 <YAxis />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Legend />
-                <Bar dataKey="total" fill="oklch(0.627 0.265 303.9)" name="Total Tasks" />
-                <Bar dataKey="completed" fill="oklch(0.696 0.17 162.48)" name="Completed" />
+                <Bar dataKey="total" fill="#b7a6f7" />
+                <Bar dataKey="completed" fill="#a9fa7d" />
               </BarChart>
             </ResponsiveContainer>
           </ChartContainer>
