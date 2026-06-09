@@ -36,6 +36,11 @@ function sortByOrder(a: Task, b: Task) {
   return a.order - b.order
 }
 
+/** Глубокая копия массива задач для надёжного snapshot до drag. */
+function cloneTasks(tasks: Task[]): Task[] {
+  return tasks.map((t) => ({ ...t }))
+}
+
 function resolveColumnId(overId: string, tasks: Task[]): ColumnId | null {
   if (isColumnId(overId)) return overId
   const task = tasks.find((t) => t.id === overId)
@@ -120,7 +125,17 @@ export function TaskBoard({ teamId, teamMembers }: TaskBoardProps) {
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
+
+  // ИСПРАВЛЕНИЕ: синхронный ref вместо side-effect внутри setState (React 19 не гарантирует синхронность)
+  const tasksRef = useRef<Task[]>([])
   const tasksBeforeDragRef = useRef<Task[] | null>(null)
+  const reorderLockRef = useRef(false)
+
+  /** Обновляет и React-state, и синхронный ref одновременно. */
+  const commitTasks = useCallback((next: Task[]) => {
+    tasksRef.current = next
+    setTasks(next)
+  }, [])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -158,15 +173,15 @@ export function TaskBoard({ teamId, teamMembers }: TaskBoardProps) {
               : "Не удалось загрузить задачи"
 
           setFetchError(msg)
-          setTasks([])
+          commitTasks([])
           return
         }
 
-        setTasks(
-          Array.isArray((data as { tasks?: unknown })?.tasks)
-            ? (data as { tasks: Task[] }).tasks
-            : [],
-        )
+        const loaded = Array.isArray((data as { tasks?: unknown })?.tasks)
+          ? (data as { tasks: Task[] }).tasks
+          : []
+
+        commitTasks(loaded)
       } catch (error: unknown) {
         const name =
           typeof error === "object" && error && "name" in error
@@ -182,7 +197,7 @@ export function TaskBoard({ teamId, teamMembers }: TaskBoardProps) {
 
         if (!cancelled) {
           setFetchError(message)
-          setTasks([])
+          commitTasks([])
           console.error("[v0] Fetch tasks error:", error)
         }
       } finally {
@@ -195,9 +210,9 @@ export function TaskBoard({ teamId, teamMembers }: TaskBoardProps) {
     return () => {
       cancelled = true
     }
-  }, [teamId])
+  }, [teamId, commitTasks])
 
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     setFetchError(null)
 
     try {
@@ -222,11 +237,11 @@ export function TaskBoard({ teamId, teamMembers }: TaskBoardProps) {
         return
       }
 
-      setTasks(
-        Array.isArray((data as { tasks?: unknown })?.tasks)
-          ? (data as { tasks: Task[] }).tasks
-          : [],
-      )
+      const loaded = Array.isArray((data as { tasks?: unknown })?.tasks)
+        ? (data as { tasks: Task[] }).tasks
+        : []
+
+      commitTasks(loaded)
     } catch (error: unknown) {
       const name =
         typeof error === "object" && error && "name" in error
@@ -243,7 +258,7 @@ export function TaskBoard({ teamId, teamMembers }: TaskBoardProps) {
 
       console.error("[v0] Fetch tasks refresh error:", error)
     }
-  }
+  }, [teamId, commitTasks])
 
   const todoTasks = useMemo(
     () => tasks.filter((t) => t.status === "todo").sort(sortByOrder),
@@ -259,87 +274,110 @@ export function TaskBoard({ teamId, teamMembers }: TaskBoardProps) {
   )
 
   const handleDragStart = (event: DragStartEvent) => {
-    tasksBeforeDragRef.current = tasks
-    const task = tasks.find((t) => t.id === event.active.id)
+    // ИСПРАВЛЕНИЕ: глубокая копия из tasksRef, а не ссылка на массив из замыкания
+    tasksBeforeDragRef.current = cloneTasks(tasksRef.current)
+    const task = tasksRef.current.find((t) => t.id === event.active.id)
     setActiveTask(task ?? null)
   }
 
   const handleDragCancel = (_event: DragCancelEvent) => {
     setActiveTask(null)
     if (tasksBeforeDragRef.current) {
-      setTasks(tasksBeforeDragRef.current)
+      commitTasks(tasksBeforeDragRef.current)
       tasksBeforeDragRef.current = null
     }
   }
 
-  const handleDragOver = useCallback((event: DragOverEvent) => {
-    const { active, over } = event
-    if (!over) return
+  const handleDragOver = useCallback(
+    (event: DragOverEvent) => {
+      const { active, over } = event
+      if (!over) return
 
-    const activeId = String(active.id)
-    const overId = String(over.id)
-    if (activeId === overId) return
+      const activeId = String(active.id)
+      const overId = String(over.id)
+      if (activeId === overId) return
 
-    setTasks((prev) => {
-      const activeTask = prev.find((t) => t.id === activeId)
-      if (!activeTask) return prev
+      const current = tasksRef.current
+      const activeTaskItem = current.find((t) => t.id === activeId)
+      if (!activeTaskItem) return
 
-      const overColumnId = resolveColumnId(overId, prev)
-      if (!overColumnId || activeTask.status === overColumnId) return prev
+      const overColumnId = resolveColumnId(overId, current)
+      if (!overColumnId) return
 
-      const next = moveTaskInKanban(prev, activeId, overId)
-      return next ?? prev
-    })
-  }, [])
+      // Внутри колонки — финальная позиция на dragEnd; между колонками — live preview
+      if (activeTaskItem.status === overColumnId) return
+
+      const next = moveTaskInKanban(current, activeId, overId)
+      if (next) commitTasks(next)
+    },
+    [commitTasks],
+  )
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
     setActiveTask(null)
 
-    if (!over) return
+    const dragStartSnapshot = tasksBeforeDragRef.current ?? cloneTasks(tasksRef.current)
+    tasksBeforeDragRef.current = null
+
+    if (!over) {
+      commitTasks(dragStartSnapshot)
+      return
+    }
+
+    if (reorderLockRef.current) {
+      commitTasks(dragStartSnapshot)
+      return
+    }
 
     const activeId = String(active.id)
     const overId = String(over.id)
 
-    let prevSnapshot: Task[] = []
-    let reorderPayload: {
-      taskId: string
-      newStatus: string
-      newOrder: number
-    } | null = null
+    // ИСПРАВЛЕНИЕ: вычисляем финальное состояние синхронно из tasksRef, без side-effect setState
+    const finalTasks = moveTaskInKanban(tasksRef.current, activeId, overId) ?? tasksRef.current
+    commitTasks(finalTasks)
 
-    setTasks((prev) => {
-      prevSnapshot = prev
-      const next = moveTaskInKanban(prev, activeId, overId)
-      if (!next) return prev
+    const moved = finalTasks.find((t) => t.id === activeId)
+    const original = dragStartSnapshot.find((t) => t.id === activeId)
 
-      const moved = next.find((t) => t.id === activeId)
-      const before = prev.find((t) => t.id === activeId)
-      if (!moved || !before) return prev
-      if (moved.status === before.status && moved.order === before.order) return prev
+    if (!moved || !original) return
 
-      reorderPayload = {
-        taskId: activeId,
-        newStatus: moved.status,
-        newOrder: moved.order,
-      }
-      return next
-    })
+    // Сравниваем с snapshot ДО drag (не с prev из handleDragOver)
+    if (moved.status === original.status && moved.order === original.order) return
 
-    if (!reorderPayload) return
+    const reorderPayload = {
+      taskId: activeId,
+      newStatus: moved.status,
+      newOrder: moved.order,
+    }
 
-    tasksBeforeDragRef.current = null
+    reorderLockRef.current = true
 
     try {
-      await fetchWithTimeout("/api/tasks/reorder", {
+      const res = await fetchWithTimeout("/api/tasks/reorder", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(reorderPayload),
       })
+
+      const data = await res.json().catch(() => null)
+
+      if (!res.ok) {
+        const msg =
+          data && typeof (data as { error?: unknown }).error === "string"
+            ? (data as { error: string }).error
+            : "Не удалось сохранить порядок задачи"
+        throw new Error(msg)
+      }
+
+      // ИСПРАВЛЕНИЕ: синхронизация с сервером после успешного сохранения
+      await fetchTasks()
     } catch (error) {
       console.error("[v0] Reorder task error:", error)
-      setTasks(prevSnapshot)
-      void fetchTasks()
+      commitTasks(dragStartSnapshot)
+      await fetchTasks()
+    } finally {
+      reorderLockRef.current = false
     }
   }
 
@@ -361,7 +399,7 @@ export function TaskBoard({ teamId, teamMembers }: TaskBoardProps) {
         method: "DELETE",
       })
 
-      setTasks((prev) => prev.filter((t) => t.id !== taskId))
+      commitTasks(tasksRef.current.filter((t) => t.id !== taskId))
     } catch (error) {
       console.error("[v0] Delete task error:", error)
     }
@@ -387,8 +425,7 @@ export function TaskBoard({ teamId, teamMembers }: TaskBoardProps) {
         throw new Error("Сервер вернул некорректный ответ при обновлении задачи")
       }
 
-      setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)))
-
+      commitTasks(tasksRef.current.map((t) => (t.id === task.id ? task : t)))
       await fetchTasks()
     } else {
       const res = await fetchWithTimeout("/api/tasks", {
@@ -409,8 +446,7 @@ export function TaskBoard({ teamId, teamMembers }: TaskBoardProps) {
         throw new Error("Сервер вернул некорректный ответ при создании задачи")
       }
 
-      setTasks((prev) => [...prev, task])
-
+      commitTasks([...tasksRef.current, task])
       await fetchTasks()
     }
   }
