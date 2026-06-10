@@ -21,8 +21,23 @@ export async function POST(request: Request) {
     if (code !== MOCK_CODE) {
       return NextResponse.json({ error: "Неверный код" }, { status: 400 })
     }
-    if (newPassword.length < 6) {
-      return NextResponse.json({ error: "Пароль должен быть минимум 6 символов" }, { status: 400 })
+
+    if (newPassword.length < 8) {
+      return NextResponse.json({ error: "Пароль должен содержать минимум 8 символов" }, { status: 400 })
+    }
+
+    const hasUpperCase = /[A-Z]/.test(newPassword)
+    const hasLowerCase = /[a-z]/.test(newPassword)
+    const hasNumber = /[0-9]/.test(newPassword)
+    const hasSpecialChar = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(newPassword)
+    if (!hasUpperCase || !hasLowerCase) {
+      return NextResponse.json({ error: "Пароль должен содержать заглавные и строчные буквы" }, { status: 400 })
+    }
+    if (!hasNumber) {
+      return NextResponse.json({ error: "Пароль должен содержать хотя бы одну цифру" }, { status: 400 })
+    }
+    if (!hasSpecialChar) {
+      return NextResponse.json({ error: "Пароль должен содержать хотя бы один спецсимвол" }, { status: 400 })
     }
 
     const hashed = await hashPassword(newPassword)

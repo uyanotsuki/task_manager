@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -49,6 +49,7 @@ interface TeamPageClientProps {
 }
 
 export function TeamPageClient({ team, currentUserId }: TeamPageClientProps) {
+  const [mounted, setMounted] = useState(false)
   const [activeTab, setActiveTab] = useState("board")
   const [teamState, setTeamState] = useState<Team>(team)
   const [editOpen, setEditOpen] = useState(false)
@@ -59,6 +60,34 @@ export function TeamPageClient({ team, currentUserId }: TeamPageClientProps) {
 
   const isAdmin = teamState.members.find((m) => m.user.id === currentUserId)?.role === "admin"
   const isCreator = teamState.creatorId === currentUserId
+
+  // Загружаем сохраненную вкладку только на клиенте
+  useEffect(() => {
+    setMounted(true)
+    
+    // Проверяем URL параметр
+    const params = new URLSearchParams(window.location.search)
+    const tabParam = params.get('tab')
+    if (tabParam && ['board', 'members', 'analytics'].includes(tabParam)) {
+      setActiveTab(tabParam)
+      sessionStorage.setItem(`team_${team.id}_active_tab`, tabParam)
+    } else {
+      // Проверяем sessionStorage
+      const savedTab = sessionStorage.getItem(`team_${team.id}_active_tab`)
+      if (savedTab && ['board', 'members', 'analytics'].includes(savedTab)) {
+        setActiveTab(savedTab)
+      }
+    }
+  }, [team.id])
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value)
+    sessionStorage.setItem(`team_${team.id}_active_tab`, value)
+    // Обновляем URL параметр
+    const url = new URL(window.location.href)
+    url.searchParams.set('tab', value)
+    window.history.pushState({}, '', url.toString())
+  }
 
   const openEdit = () => {
     setError("")
@@ -98,6 +127,29 @@ export function TeamPageClient({ team, currentUserId }: TeamPageClientProps) {
     } finally {
       setSaving(false)
     }
+  }
+
+  // Пока не смонтирован клиент, показываем заглушку
+  if (!mounted) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col bg-background">
+        <header className="sticky top-0 z-20 border-b border-black/5 bg-white/70 backdrop-blur-xl dark:bg-black/20 dark:border-white/10">
+          <div className="flex h-16 shrink-0 items-center gap-2 px-4">
+            <div className="container flex flex-1 items-center gap-4">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-2xl font-semibold tracking-tight truncate">{teamState.name}</h1>
+                <p className="text-sm text-muted-foreground/80 truncate">{teamState.description}</p>
+              </div>
+            </div>
+          </div>
+        </header>
+        <main className="container mx-auto flex-1 py-4">
+          <div className="flex h-96 items-center justify-center">
+            Загрузка...
+          </div>
+        </main>
+      </div>
+    )
   }
 
   return (
@@ -179,7 +231,7 @@ export function TeamPageClient({ team, currentUserId }: TeamPageClientProps) {
 
       {/* MAIN */}
       <main className="container mx-auto flex-1 py-4">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
 
           {/* TABS */}
           <TabsList

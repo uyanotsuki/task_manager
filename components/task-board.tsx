@@ -416,50 +416,100 @@ export function TaskBoard({ teamId, teamMembers }: TaskBoardProps) {
   }
 
   const handleSaveTask = async (data: Partial<Task>) => {
-    if (editingTask) {
-      const res = await fetchWithTimeout(`/api/tasks/${editingTask.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      })
-
-      const payload = await res.json()
-
-      if (!res.ok) {
-        throw new Error(payload?.error || "Не удалось обновить задачу")
+    try {
+      if (editingTask) {
+        const res = await fetchWithTimeout(`/api/tasks/${editingTask.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        })
+  
+        const payload = await res.json()
+  
+        if (!res.ok) {
+          throw new Error(payload?.error || "Не удалось обновить задачу")
+        }
+  
+        const task = payload?.task
+  
+        if (!task) {
+          throw new Error("Сервер вернул некорректный ответ при обновлении задачи")
+        }
+  
+        // Обновляем задачу в локальном состоянии
+        commitTasks(tasksRef.current.map((t) => (t.id === task.id ? task : t)))
+        
+      } else {
+        const res = await fetchWithTimeout("/api/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...data, teamId }),
+        })
+  
+        const payload = await res.json()
+  
+        if (!res.ok) {
+          throw new Error(payload?.error || "Не удалось создать задачу")
+        }
+  
+        const task = payload?.task
+  
+        if (!task) {
+          throw new Error("Сервер вернул некорректный ответ при создании задачи")
+        }
+  
+        commitTasks([...tasksRef.current, task])
       }
-
-      const task = payload?.task
-
-      if (!task) {
-        throw new Error("Сервер вернул некорректный ответ при обновлении задачи")
-      }
-
-      commitTasks(tasksRef.current.map((t) => (t.id === task.id ? task : t)))
-      await fetchTasks()
-    } else {
-      const res = await fetchWithTimeout("/api/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...data, teamId }),
-      })
-
-      const payload = await res.json()
-
-      if (!res.ok) {
-        throw new Error(payload?.error || "Не удалось создать задачу")
-      }
-
-      const task = payload?.task
-
-      if (!task) {
-        throw new Error("Сервер вернул некорректный ответ при создании задачи")
-      }
-
-      commitTasks([...tasksRef.current, task])
-      await fetchTasks()
+    } catch (error) {
+      console.error("[v0] Save task error:", error)
+      throw error  
     }
   }
+  // const handleSaveTask = async (data: Partial<Task>) => {
+  //   if (editingTask) {
+  //     const res = await fetchWithTimeout(`/api/tasks/${editingTask.id}`, {
+  //       method: "PATCH",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify(data),
+  //     })
+
+  //     const payload = await res.json()
+
+  //     if (!res.ok) {
+  //       throw new Error(payload?.error || "Не удалось обновить задачу")
+  //     }
+
+  //     const task = payload?.task
+
+  //     if (!task) {
+  //       throw new Error("Сервер вернул некорректный ответ при обновлении задачи")
+  //     }
+
+  //     commitTasks(tasksRef.current.map((t) => (t.id === task.id ? task : t)))
+  //     await fetchTasks()
+  //   } else {
+  //     const res = await fetchWithTimeout("/api/tasks", {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({ ...data, teamId }),
+  //     })
+
+  //     const payload = await res.json()
+
+  //     if (!res.ok) {
+  //       throw new Error(payload?.error || "Не удалось создать задачу")
+  //     }
+
+  //     const task = payload?.task
+
+  //     if (!task) {
+  //       throw new Error("Сервер вернул некорректный ответ при создании задачи")
+  //     }
+
+  //     commitTasks([...tasksRef.current, task])
+  //     await fetchTasks()
+  //   }
+  // }
 
   if (loading) {
     return (
@@ -571,6 +621,7 @@ export function TaskBoard({ teamId, teamMembers }: TaskBoardProps) {
         task={editingTask}
         onSave={handleSaveTask}
         teamMembers={teamMembers.map((m) => ({
+          teamMemberId: m.id,  
           userId: m.user.id,
           name: m.user.name,
           email: m.user.email,

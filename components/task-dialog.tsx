@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { BoardTask } from "./task-types"
 
 interface TeamMemberOption {
+  teamMemberId: string
   userId: string
   name: string
   email: string
@@ -49,10 +50,9 @@ export function TaskDialog({ open, onOpenChange, task, onSave, teamMembers }: Ta
         setDescription(task.description || "")
         setPriority(task.priority)
         setStatus(task.status)
-        setAssignee(task.assignee?.user?.id || "unassigned")
+        setAssignee(task.assigneeId || "unassigned")
         setDeadline(task.deadline ? String(task.deadline).slice(0, 16) : "")
       } else {
-        // Режим создания новой задачи — полный сброс
         setTitle("")
         setDescription("")
         setPriority("medium")
@@ -151,7 +151,7 @@ export function TaskDialog({ open, onOpenChange, task, onSave, teamMembers }: Ta
                   <SelectContent>
                     <SelectItem value="unassigned">Не назначен</SelectItem>
                     {teamMembers.map((member) => (
-                      <SelectItem key={member.userId} value={member.userId}>
+                      <SelectItem key={member.teamMemberId} value={member.teamMemberId}>
                         {member.name}
                       </SelectItem>
                     ))}

@@ -115,13 +115,34 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: access.error }, { status: access.status })
     }
 
-    // === Основные данные + дедлайн ===
+    // === Основные данные + дедлайн + исполнитель ===
     const updateData: any = {}
 
     if (body.title !== undefined) updateData.title = body.title
     if (body.description !== undefined) updateData.description = body.description
     if (body.priority !== undefined) updateData.priority = body.priority
     if (body.status !== undefined) updateData.status = body.status
+
+    // Обработка исполнителя (assignee)
+    if (body.assigneeId !== undefined) {
+      if (body.assigneeId === null || body.assigneeId === "") {
+        updateData.assigneeId = null
+      } else {
+        // Проверяем существование исполнителя в команде
+        const teamMember = await prisma.teamMember.findFirst({
+          where: {
+            id: body.assigneeId,
+            teamId: existingTask.teamId,
+          },
+        })
+        
+        if (!teamMember) {
+          return NextResponse.json({ error: "Исполнитель не найден в этой команде" }, { status: 400 })
+        }
+        
+        updateData.assigneeId = body.assigneeId
+      }
+    }
 
     // Дедлайн — максимально просто
     if (body.deadline !== undefined) {

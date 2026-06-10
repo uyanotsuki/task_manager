@@ -9,6 +9,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { UserPlus, Trash2 } from "lucide-react"
 
 interface Team {
@@ -35,6 +43,13 @@ export function TeamMembersPanel({ team, isAdmin, currentUserId }: TeamMembersPa
   const [role, setRole] = useState("member")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [memberToDelete, setMemberToDelete] = useState<{
+    id: string
+    name: string
+    email: string
+  } | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -64,18 +79,61 @@ export function TeamMembersPanel({ team, isAdmin, currentUserId }: TeamMembersPa
     }
   }
 
-  const handleRemoveMember = async (memberId: string) => {
-    if (!confirm("Are you sure you want to remove this member?")) return
+  const openRemoveConfirm = (member: Team["members"][number]) => {
+    setMemberToDelete({
+      id: member.id,
+      name: member.user.name,
+      email: member.user.email,
+    })
+    setConfirmOpen(true)
+  }
 
+  const handleRemoveMember = async () => {
+    if (!memberToDelete) return
+  
+    setDeleteLoading(true)
+  
     try {
-      await fetch(`/api/teams/${team.id}/members?memberId=${memberId}`, {
+      const res = await fetch(`/api/teams/${team.id}/members?memberId=${memberToDelete.id}`, {
         method: "DELETE",
       })
-      window.location.reload()
+      
+      if (res.ok) {
+        setConfirmOpen(false)
+        // Сохраняем активную вкладку members и перезагружаем
+        const url = new URL(window.location.href)
+        url.searchParams.set('tab', 'members')
+        window.location.href = url.toString()
+      } else {
+        console.error("Ошибка при удалении")
+        setConfirmOpen(false)
+      }
     } catch (error) {
       console.error("[v0] Remove member error:", error)
+      setConfirmOpen(false)
+    } finally {
+      setDeleteLoading(false)
+      setMemberToDelete(null)
     }
   }
+  // const handleRemoveMember = async () => {
+  //   if (!memberToDelete) return
+
+  //   setConfirmOpen(false)
+  //   setDeleteLoading(true)
+
+  //   try {
+  //     await fetch(`/api/teams/${team.id}/members?memberId=${memberToDelete.id}`, {
+  //       method: "DELETE",
+  //     })
+  //     window.location.reload()
+  //   } catch (error) {
+  //     console.error("[v0] Remove member error:", error)
+  //   } finally {
+  //     setDeleteLoading(false)
+  //     setMemberToDelete(null)
+  //   }
+  // }
 
   return (
     <div className="space-y-6">
@@ -146,7 +204,8 @@ export function TeamMembersPanel({ team, isAdmin, currentUserId }: TeamMembersPa
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => handleRemoveMember(member.id)}
+                      onClick={() => openRemoveConfirm(member)}
+                      disabled={deleteLoading}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -157,6 +216,57 @@ export function TeamMembersPanel({ team, isAdmin, currentUserId }: TeamMembersPa
           </div>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={confirmOpen}
+        onOpenChange={(open) => {
+          setConfirmOpen(open)
+          if (!open) setMemberToDelete(null)
+        }}
+      >
+        <DialogContent
+          className="
+            sm:max-w-[520px]
+            rounded-3xl
+            border border-black/5
+            bg-white/80
+            backdrop-blur-2xl
+            shadow-2xl
+            dark:bg-zinc-900/80
+            dark:border-white/10
+          "
+        >
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold tracking-tight">
+              Удалить участника?
+            </DialogTitle>
+            <DialogDescription className="light:text-gray dark:text-white">
+              {memberToDelete
+                ? `Вы уверены, что хотите удалить ${memberToDelete.name} (${memberToDelete.email}) из команды?`
+                : "Вы уверены, что хотите удалить этого участника из команды?"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmOpen(false)}
+              disabled={deleteLoading}
+              className="rounded-xl"
+            >
+              Отмена
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRemoveMember}
+              disabled={deleteLoading}
+              className="rounded-xl"
+            >
+              {deleteLoading ? "Удаление..." : "Удалить участника"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
